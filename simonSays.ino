@@ -1,18 +1,11 @@
 /*
- * =====================================================
- * TRIN 6: KOMPLET SPIL
- * =====================================================
+ * MEMORY SPIL - Arduino Workshop
+ * Et Simon Says-lignende spil med NeoPixel LEDs og buzzer
  *
- * NYT i dette trin:
- *   - Unikke toner for hver farve
- *   - Hastigheden øges med niveauet
- *   - Ordentlig debounce på knapper
- *   - Feedback mens knappen holdes nede
- *
- * Dette er det færdige Memory Spil!
- *
- * Hardware: NeoPixel + 4 knapper + buzzer
- * =====================================================
+ * Hardware:
+ * - 4 knapper på pin 2-5 (hvid, rød, gul, blå)
+ * - 8 NeoPixel LEDs på pin 6
+ * - Buzzer på pin 9
  */
 
 #include <Adafruit_NeoPixel.h>
@@ -26,38 +19,51 @@
 #define BUZZER      9
 
 // === KONSTANTER ===
-#define ANTAL_LEDS    8
-#define MAX_NIVEAU    20
-#define DEBOUNCE_TID  30   // ===== NYT: Debounce tid i ms =====
+#define ANTAL_LEDS  8
+#define MAX_NIVEAU  20
+#define DEBOUNCE_TID 30  // Millisekunder til debounce
 
-// === NYT: TONER FOR HVER FARVE ===
-// Musikalske toner (Hz): C, E, G, høj C
-const int TONER[] = {262, 330, 392, 523};
+// === FARVER (RGB) ===
+const uint32_t HVID  = 0xFFFFFF;
+const uint32_t ROED  = 0xFF0000;
+const uint32_t GUL   = 0xFFFF00;
+const uint32_t BLAA  = 0x0000FF;
+const uint32_t SLUKKET = 0x000000;
 
+// Toner for hver farve (Hz)
+const int TONER[] = {262, 330, 392, 523};  // C, E, G, C (højere)
+
+// === GLOBALE VARIABLER ===
 Adafruit_NeoPixel strip(ANTAL_LEDS, NEOPIXEL, NEO_GRB + NEO_KHZ800);
+int sekvens[MAX_NIVEAU];  // Gemmer spillets sekvens
+int niveau = 0;           // Nuværende niveau (antal trin i sekvensen)
 
-// Spillets hukommelse
-int sekvens[MAX_NIVEAU];
-int niveau = 0;
-
+// === SETUP ===
 void setup() {
+  // Initialiser knapper med intern pull-up modstand
   pinMode(KNAP_HVID, INPUT_PULLUP);
   pinMode(KNAP_ROED, INPUT_PULLUP);
   pinMode(KNAP_GUL, INPUT_PULLUP);
   pinMode(KNAP_BLAA, INPUT_PULLUP);
+
   pinMode(BUZZER, OUTPUT);
 
+  // Start NeoPixel
   strip.begin();
-  strip.setBrightness(150);
+  strip.setBrightness(150);  // Lysstyrke (0-255)
   strip.show();
 
+  // Tilfældig seed fra ubrugt analog pin
   randomSeed(analogRead(A0));
+
+  // Velkomst animation
   velkomst();
 }
 
+// === HOVEDLOOP ===
 void loop() {
-  // Tilføj ny farve
-  sekvens[niveau] = random(0, 4);
+  // Tilføj nyt element til sekvensen
+  sekvens[niveau] = random(0, 4);  // 0=hvid, 1=rød, 2=gul, 3=blå
   niveau++;
 
   delay(500);
@@ -65,78 +71,33 @@ void loop() {
   // Vis sekvensen
   visSekvens();
 
-  // Spillerens tur
+  // Spillerens tur - gentag sekvensen
   for (int i = 0; i < niveau; i++) {
-    int svar = laesKnap();  // Viser feedback automatisk
+    int tryk = laesKnap();  // Viser feedback automatisk
 
-    if (svar != sekvens[i]) {
+    if (tryk != sekvens[i]) {
+      // Forkert! Game over
       gameOver();
       return;
     }
   }
 
   // Runde klaret!
-  delay(300);
+  delay(500);
 }
 
-// =====================================================
-// ===== NYT: HASTIGHED DER ØGES =====
-// =====================================================
+// === HJÆLPEFUNKTIONER ===
 
-/*
- * getForsinkelse() - Beregn visningstid baseret på niveau
- *
- * Start: 600ms, reduceres med 50ms per niveau
- * Minimum: 200ms (ellers bliver det umuligt!)
- */
+// Beregn forsinkelse baseret på niveau (hurtigere = sværere)
 int getForsinkelse() {
   int forsinkelse = 600 - (niveau * 50);
-  if (forsinkelse < 200) {
-    forsinkelse = 200;
-  }
+  if (forsinkelse < 200) forsinkelse = 200;  // Minimum 200ms
   return forsinkelse;
 }
 
-// =====================================================
-// ===== NYT: VIS FARVE MED LYD =====
-// =====================================================
-
-/*
- * visFarve() - Tænd LEDs OG spil tone
- */
-void visFarve(int farveNr) {
-  slukAlle();
-
-  // Bestem farve
-  int r, g, b;
-  switch (farveNr) {
-    case 0: r = 255; g = 255; b = 255; break;  // Hvid
-    case 1: r = 255; g = 0;   b = 0;   break;  // Rød
-    case 2: r = 255; g = 255; b = 0;   break;  // Gul
-    case 3: r = 0;   g = 0;   b = 255; break;  // Blå
-  }
-
-  // Tænd LEDs
-  int led = 7 - (farveNr * 2);
-  strip.setPixelColor(led, r, g, b);
-  strip.setPixelColor(led - 1, r, g, b);
-  strip.show();
-
-  // ===== NYT: Spil tone =====
-  tone(BUZZER, TONER[farveNr]);
-}
-
-void slukAlle() {
-  strip.clear();
-  strip.show();
-  noTone(BUZZER);
-}
-
-/*
- * visSekvens() - Vis sekvensen med dynamisk hastighed
- */
+// Vis hele sekvensen
 void visSekvens() {
-  int forsinkelse = getForsinkelse();  // ===== NYT: Bruger niveau =====
+  int forsinkelse = getForsinkelse();
 
   for (int i = 0; i < niveau; i++) {
     visFarve(sekvens[i]);
@@ -146,28 +107,39 @@ void visSekvens() {
   }
 }
 
-// =====================================================
-// ===== NYT: DEBOUNCE PÅ KNAPPER =====
-// =====================================================
+// Vis én farve på LEDs og spil tone
+void visFarve(int farveNr) {
+  uint32_t farve;
 
-/*
- * laesKnap() - Læs knapstryk med ordentlig debounce
- *
- * Debounce-problemet:
- *   Når en knap trykkes, "hopper" kontakten og sender
- *   mange tænd/sluk signaler på få millisekunder.
- *
- * Løsning:
- *   1. Vent på at knap trykkes
- *   2. Vent DEBOUNCE_TID ms
- *   3. Vis feedback mens knappen holdes
- *   4. Vent på at knappen slippes
- *   5. Vent DEBOUNCE_TID ms igen
- */
+  switch (farveNr) {
+    case 0: farve = HVID; break;
+    case 1: farve = ROED; break;
+    case 2: farve = GUL;  break;
+    case 3: farve = BLAA; break;
+  }
+
+  // Tænd 2 LEDs per farve (LED 0-1, 2-3, 4-5, 6-7)
+  strip.setPixelColor(7-(farveNr * 2), farve);
+  strip.setPixelColor(7-(farveNr * 2 + 1), farve);
+  strip.show();
+
+  // Spil tone
+  tone(BUZZER, TONER[farveNr]);
+}
+
+// Sluk alle LEDs og lyd
+void slukAlle() {
+  strip.clear();
+  strip.show();
+  noTone(BUZZER);
+}
+
+// Vent på knapstryk og returner hvilken (0-3)
+// Med debounce: vent, tjek igen, vent på slip
 int laesKnap() {
   int knap = -1;
 
-  // 1. Vent på knapstryk
+  // 1. Vent på at en knap trykkes
   while (knap == -1) {
     if (digitalRead(KNAP_HVID) == LOW) knap = 0;
     if (digitalRead(KNAP_ROED) == LOW) knap = 1;
@@ -175,16 +147,16 @@ int laesKnap() {
     if (digitalRead(KNAP_BLAA) == LOW) knap = 3;
   }
 
-  // 2. Debounce ved tryk
+  // 2. Debounce: vent lidt og tjek at knappen stadig er trykket
   delay(DEBOUNCE_TID);
 
-  // 3. Vis feedback (LED + lyd)
+  // 3. Vis feedback mens knappen holdes nede
   visFarve(knap);
 
   // 4. Vent på at knappen slippes
   int pins[] = {KNAP_HVID, KNAP_ROED, KNAP_GUL, KNAP_BLAA};
   while (digitalRead(pins[knap]) == LOW) {
-    // Holder feedback tændt...
+    // Venter...
   }
 
   // 5. Debounce ved slip
@@ -194,78 +166,46 @@ int laesKnap() {
   return knap;
 }
 
-// =====================================================
-// ØVRIGE FUNKTIONER
-// =====================================================
-
+// Velkomst animation
 void velkomst() {
   for (int i = 0; i < ANTAL_LEDS; i++) {
-    strip.setPixelColor(i, 0, 0, 255);
+    strip.setPixelColor(i, BLAA);
     strip.show();
-    delay(80);
+    delay(100);
   }
-  delay(300);
+  delay(500);
   slukAlle();
   delay(500);
 }
 
+// Game over - blink rødt og vis score
 void gameOver() {
   noTone(BUZZER);
 
   // Blink rødt 3 gange
   for (int i = 0; i < 3; i++) {
     for (int j = 0; j < ANTAL_LEDS; j++) {
-      strip.setPixelColor(j, 255, 0, 0);
+      strip.setPixelColor(j, ROED);
     }
     strip.show();
-    tone(BUZZER, 150);
+    tone(BUZZER, 150);  // Lav fejl-tone
     delay(200);
     slukAlle();
     noTone(BUZZER);
     delay(200);
   }
 
-  // Vis score
+  // Vis score (niveau-1 fordi vi fejlede på dette niveau)
+  // Tænd så mange LEDs som spilleren klarede
   int score = niveau - 1;
   for (int i = 0; i < score && i < ANTAL_LEDS; i++) {
-    strip.setPixelColor(i, 255, 255, 0);
+    strip.setPixelColor(i, GUL);
   }
   strip.show();
   delay(2000);
 
-  // Nulstil
+  // Nulstil og start forfra
   slukAlle();
   niveau = 0;
   delay(1000);
 }
-
-/*
- * =====================================================
- * TILLYKKE! DU HAR LAVET ET KOMPLET SPIL!
- * =====================================================
- *
- * Hvad du har lært:
- *   - NeoPixel LED-styring
- *   - Knap-input med INPUT_PULLUP
- *   - Funktioner til at organisere kode
- *   - Arrays til at gemme data
- *   - for-loops til gentagelse
- *   - random() til tilfældighed
- *   - tone() til lyd
- *   - Debounce til pålidelig input
- *
- * =====================================================
- * UDFORDRINGER:
- * =====================================================
- *
- * 1. Tilføj en "highscore" der vises ved game over
- *
- * 2. Lav en svær mode der starter hurtigere
- *
- * 3. Tilføj en 5. knap der starter spillet forfra
- *
- * 4. Gem highscore i EEPROM så den huskes
- *    (hint: #include <EEPROM.h>)
- *
- * =====================================================
- */
