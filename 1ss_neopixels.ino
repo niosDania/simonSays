@@ -1,5 +1,3 @@
-
-
 #include <Adafruit_NeoPixel.h>
 
 // === PIN DEFINITIONER ===
@@ -7,7 +5,6 @@
 
 // === KONSTANTER ===
 #define ANTAL_LEDS  8
-#define MAX_NIVEAU  20
 
 // === FARVER (RGB) ===
 const uint32_t HVID  = 0xFFFFFF;
